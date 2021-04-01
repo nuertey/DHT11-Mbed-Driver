@@ -56,14 +56,23 @@ class NuerteyDHT11Device
     "Hey! NuerteyDHT11Device in its current form is only designed with DHT11, or DHT22 sensors in mind!!");
 
 public:
-    static constexpr int       JSON_WEB_TOKENS_BUFFER_SIZE = 6;
+    static constexpr int       JSON_WEB_TOKENS_BUFFER_SIZE = 5;
 
     NuerteyDHT11Device(PinName thePinName);
 
     NuerteyDHT11Device(const NuerteyDHT11Device&) = delete;
     NuerteyDHT11Device& operator=(const NuerteyDHT11Device&) = delete;
+    // Note that as the copy constructor and assignment operators above 
+    // have been designated 'deleted', automagically, the move constructor
+    // and move assignment operators would likewise be omitted for us by
+    // the compiler, as indeed, we do intend. For after all, this driver  
+    // class is not intended to be copied or moved as it has ownership 
+    // of a unique hardware pin. Indeed, the Compiler is our friend. We 
+    // simply have to play by its stringent rules. Simple!
 
     virtual ~NuerteyDHT11Device();
+
+    [[nodiscard]] SensorStatus_t ReadData();
 
     [[nodiscard]] bool        IsOpen() const;
     const std::string &       GetName() const;
@@ -108,4 +117,35 @@ NuerteyDHT11Device<T>::NuerteyDHT11Device(PinName thePinName)
 template <typename T>
 NuerteyDHT11Device<T>::~NuerteyDHT11Device()
 {
+}
+
+template <typename T>
+SensorStatus_t NuerteyDHT11Device<T>::ReadData()
+{
+    bool result = false;
+      
+
+    if constexpr (std::is_same<T, DHT11_t>::value)
+    {
+        ComposeAmazonMQTTConnectData<DHT11_t>();
+    }
+    else if constexpr (std::is_same<T, DHT22_t>::value)
+    {
+        ComposeGoogleMQTTConnectData<DHT22_t>();
+    }
+
+    
+    return result;
+}
+
+template <typename T>
+void NuerteyDHT11Device<T>::DataPinRising()
+{
+
+}
+
+template <typename T>
+void NuerteyDHT11Device<T>::DataPinFalling()
+{
+
 }
