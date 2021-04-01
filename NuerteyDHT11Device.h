@@ -63,8 +63,11 @@
 
 #include <cstdint>
 #include <array>
-
+#include <time.h> 
 #include "mbed.h"
+
+#define PIN_HIGH  1
+#define PIN_LOW   0
 
 enum class SensorStatus_t : uint8_t
 {
@@ -104,6 +107,7 @@ public:
     static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS = 8;
     static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES      = 5;
     static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
+    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       = 2;
 
     using DataFrame_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
 
@@ -136,10 +140,12 @@ private:
 
     PinName              m_TheDataPinName;
     DataFrame_t          m_TheDataFrame;
+    time_t               m_TheLastReadTime;
+    SensorStatus_t       m_TheLastReadResult;
 
     int                  DHT_data[6]; // volatile int _count;
 
-    time_t               _lastReadTime;
+
     float                _lastTemperature;
     float                _lastHumidity;
 };
@@ -148,6 +154,20 @@ template <typename T>
 NuerteyDHT11Device<T>::NuerteyDHT11Device(PinName thePinName)
     : m_TheDataPinName(thePinName)
 {
+    // Typically for POSIX:
+    m_TheLastReadTime = time(NULL) - MINIMUM_SAMPLING_PERIOD_SECONDS;
+
+    // Non-POSIX systems:
+    m_TheLastReadTime = time(NULL);
+
+    struct tm now_tm = *localtime(&m_TheLastReadTime);
+    struct tm then_tm = now_tm;
+
+    // Subtract 2 seconds from the time.
+    then_tm.tm_sec -= MINIMUM_SAMPLING_PERIOD_SECONDS;
+
+    // Normalize it:
+    m_TheLastReadTime = mktime(&then_tm);      
 }
 
 template <typename T>
@@ -158,7 +178,33 @@ NuerteyDHT11Device<T>::~NuerteyDHT11Device()
 template <typename T>
 SensorStatus_t NuerteyDHT11Device<T>::ReadData()
 {
-    bool result = false;
+    SensorStatus_t result = SensorStatus_t::SUCCESS;
+
+    // Check if sensor was read less than two seconds ago and return 
+    // early to use last reading.
+    currentTime = time(NULL);
+
+    if (m_TheLastReadTime >= 0)
+    {
+        if (difftime(currentTime, m_TheLastReadTime) < MINIMUM_SAMPLING_PERIOD_SECONDS)
+        {
+            return ERROR_TOO_FAST;
+        }
+    }
+    else
+    {
+        m_TheLastReadTime = currentTime;
+    }
+
+    // Reset 40 bits of previously received data to zero.
+    m_TheDataFrame.fill(0);
+
+    // DHT11 uses a simplified single-wire bidirectional communication protocol.
+    // It follows a Master/Slave paradigm [NUCLEO-F767ZI=Master, DHT11=Slave] 
+    // with the MCU observing these states:
+    //
+    // WAITING, READING.
+    DigitalInOut theDigitalInOutPin(m_TheDataPinName);
 
     InterruptIn theRisingInterrupt(m_TheDataPinName);
     
@@ -181,6 +227,18 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     theFallingInterrupt.fall(callback(this, &NuerteyDHT11Device<T>::DataPinFalling));
 
     //volatile int _count;
+
+    // MCU Sends out Start Signal to DHT:
+    //
+    // "Data Single-bus free status is at high voltage level. When the 
+    // communication between MCU and DHT11 begins, the programme of MCU 
+    // will set Data Single-bus voltage level from high to low."
+    // 
+    // https://www.mouser.com/datasheet/2/758/DHT11-Technical-Data-Sheet-Translated-Version-1143054.pdf
+    theDigitalInOutPin.mode(PullUp);
+    theDigitalInOutPin.output();
+    theDigitalInOutPin = PIN_LOW;
+
 
     if constexpr (std::is_same<T, DHT11_t>::value)
     {
