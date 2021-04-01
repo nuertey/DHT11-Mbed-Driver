@@ -154,20 +154,11 @@ template <typename T>
 NuerteyDHT11Device<T>::NuerteyDHT11Device(PinName thePinName)
     : m_TheDataPinName(thePinName)
 {
-    // Typically for POSIX:
-    m_TheLastReadTime = time(NULL) - MINIMUM_SAMPLING_PERIOD_SECONDS;
-
-    // Non-POSIX systems:
-    m_TheLastReadTime = time(NULL);
-
-    struct tm now_tm = *localtime(&m_TheLastReadTime);
-    struct tm then_tm = now_tm;
-
-    // Subtract 2 seconds from the time.
-    then_tm.tm_sec -= MINIMUM_SAMPLING_PERIOD_SECONDS;
-
-    // Normalize it:
-    m_TheLastReadTime = mktime(&then_tm);      
+    // Typically for POSIX, the following is enough:
+    // Using this value ensures that time(NULL) - m_TheLastReadTime will
+    // be >= MINIMUM_SAMPLING_PERIOD_SECONDS right away. Note that this 
+    // assignment wraps around, but so will the subtraction.
+    m_TheLastReadTime = time(NULL) - MINIMUM_SAMPLING_PERIOD_SECONDS; 
 }
 
 template <typename T>
@@ -184,17 +175,12 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     // early to use last reading.
     currentTime = time(NULL);
 
-    if (m_TheLastReadTime >= 0)
+    if (difftime(currentTime, m_TheLastReadTime) < MINIMUM_SAMPLING_PERIOD_SECONDS)
     {
-        if (difftime(currentTime, m_TheLastReadTime) < MINIMUM_SAMPLING_PERIOD_SECONDS)
-        {
-            return ERROR_TOO_FAST;
-        }
+        return m_TheLastReadResult; // return last correct measurement
     }
-    else
-    {
-        m_TheLastReadTime = currentTime;
-    }
+
+    m_TheLastReadTime = currentTime;
 
     // Reset 40 bits of previously received data to zero.
     m_TheDataFrame.fill(0);
