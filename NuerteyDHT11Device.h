@@ -3,13 +3,55 @@
 *
 *    DHT11/DHT22 temperature and humidity sensor driver targetted for  
 *    ARM Mbed platform. 
+* 
+*    For ease of use, flexibility and readability of the code, the driver
+*    is written in a modern C++ (C++17/C++20) templatized class/idiom. 
+* 
+*    As Bjarne Stroustrup is fond of saying, "C++ implementations obey 
+*    the zero-overhead principle: What you don’t use, you don’t pay for."
 *
-* @brief   Drive the DHT11/DHT22 sensor module in order to obtain 
+* @brief   Drive the DHT11/DHT22 sensor module(s) in order to obtain 
 *          temperature/humidity readings.
 * 
-* @note    Written in a modern C++ (C++17/C++20) templatized class/idiom.
+* @note    The Sensor Peripheral (DHT11) Component's Details Are As 
+*          Follows:
+* 
+*   1) The DHT11 sensor measures and provides humidity and temperature 
+*      values serially over a single wire. Its characteristics are as 
+*      follows:
+*      
+*      - It can measure relative humidity in percentages (20 to 90% RH) 
+*        and temperature in degree Celsius in the range of 0 to 50°C.
+* 
+*      - It has 4 pins; one of which is used for data communication in 
+*        serial form.
+* 
+*      - Pulses of different TON and TOFF are decoded as logic 1 or 
+*        logic 0 or start pulse or end of frame.
+* 
+*      - Power Supply: 3 to 5V DC, 2.5mA max current use during 
+*        conversion (while requesting data).
+* 
+*      - Operating range: Good for 20-80% humidity readings with 5% 
+*        accuracy.
+* 
+*      - Good for 0-50°C temperature readings ±2°C accuracy.
+* 
+*      - No more than 1 Hz sampling rate (once every second).
+* 
+*      - Body size: 15.5mm x 12mm x 5.5mm. 
 *
-* @warning
+* @warning    These warnings are key to successful sensor operation: 
+* 
+*   [1] When the connecting cable to the data pin is shorter than 20 
+*       metres, a 5K pull-up resistor is recommended;
+* 
+*   [2] When the connecting cable to the data pin is longer than 20 
+*       metres, choose an appropriate pull-up resistor as needed.
+* 
+*   [3] When power is supplied to the sensor, do not send any instructions
+*       to the sensor in within one second in order to pass the unstable
+*       status phase. 
 *
 * @author    Nuertey Odzeyem
 * 
@@ -18,6 +60,9 @@
 * @copyright Copyright (c) 2021 Nuertey Odzeyem. All Rights Reserved.
 ***********************************************************************/
 #pragma once
+
+#include <cstdint>
+#include <array>
 
 #include "mbed.h"
 
@@ -56,7 +101,11 @@ class NuerteyDHT11Device
     "Hey! NuerteyDHT11Device in its current form is only designed with DHT11, or DHT22 sensors in mind!!");
 
 public:
-    static constexpr int       JSON_WEB_TOKENS_BUFFER_SIZE = 5;
+    static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS = 8;
+    static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES      = 5;
+    static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
+
+    using DataFrame_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
 
     NuerteyDHT11Device(PinName thePinName);
 
@@ -74,7 +123,6 @@ public:
 
     [[nodiscard]] SensorStatus_t ReadData();
 
-    [[nodiscard]] bool        IsOpen() const;
     const std::string &       GetName() const;
     unsigned int              GetPeriodDurationMicroSecs() const;
 
@@ -82,30 +130,18 @@ public:
     void DataPinFalling();
 
 protected:
-    // Keep protected to enforce RAII. No one should be explicitly calling these anyway.
-    bool Open();
-    bool Close();
 
 private:
-    PinName              m_TheDataPinName;      // Self-explanatory.
+    [[nodiscard]] SensorStatus_t ValidateChecksum() const;
+
+    PinName              m_TheDataPinName;
+    DataFrame_t          m_TheDataFrame;
 
     int                  DHT_data[6]; // volatile int _count;
-    std::array<int, M>   rBuffer;
 
     time_t               _lastReadTime;
     float                _lastTemperature;
     float                _lastHumidity;
-
-    enum _snd_pcm_stream  m_DeviceType;          // SND_PCM_STREAM_CAPTURE | SND_PCM_STREAM_PLAYBACK
-    uint8_t               m_NumberOfChannels;    // Quality of the recorded audio.
-    snd_pcm_uframes_t     m_FramesPerPeriod;     // Latency - lower numbers will decrease latency and increase CPU usage.
-    uint32_t              m_SamplingRate;        // Quality of the recorded audio.
-    snd_pcm_format_t      m_Format;              // Bit depth - Quality.
-    snd_pcm_t*            m_pPCMHandle;          // Returned PCM handle.
-    bool                  m_IsDeviceOpen;        // A way to track if device open and configuration truly succeeded.
-    snd_pcm_hw_params_t*  m_pHardwareParameters; // Just as a cautionary step, keep this around until we are destructing the class.
-    bool                  m_IsOperationErrorPresent; // A way to track if a read or write error exists.
-
 };
 
 template <typename T>
@@ -155,6 +191,20 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
         ComposeGoogleMQTTConnectData<DHT22_t>();
     }
 
+    
+    return result;
+}
+
+template <typename T>
+SensorStatus_t NuerteyDHT11Device<T>::ValidateChecksum()
+{
+    SensorStatus_t result = SensorStatus_t::ERROR_BAD_CHECKSUM;
+    
+    // Per the sensor device specs./data sheet:
+    if (m_TheDataFrame[4] == ((m_TheDataFrame[0] + m_TheDataFrame[1] + m_TheDataFrame[2] + m_TheDataFrame[3]) & 0xFF))
+    {
+        result = SensorStatus_t::SUCCESS;
+    }
     
     return result;
 }
