@@ -89,7 +89,7 @@ protected:
 private:
     PinName              m_TheDataPinName;      // Self-explanatory.
 
-    int                  DHT_data[6];
+    int                  DHT_data[6]; // volatile int _count;
     std::array<int, M>   rBuffer;
 
     time_t               _lastReadTime;
@@ -123,7 +123,28 @@ template <typename T>
 SensorStatus_t NuerteyDHT11Device<T>::ReadData()
 {
     bool result = false;
-      
+
+    InterruptIn theRisingInterrupt(m_TheDataPinName);
+    
+    // Attach member method of this NuerteyDHT11Device<T> instance to ISR.
+    // Note that when callbacks are attached as per the below, the Mbed 
+    // OS driver API calls them in interrupt context. Interrupt context
+    // runs at a higher priority than any thread, which means that any 
+    // code called from the attach callback must be interrupt safe.
+    theRisingInterrupt.rise(callback(this, &NuerteyDHT11Device<T>::DataPinRising));
+
+    //volatile int _count;
+
+    InterruptIn theFallingInterrupt(m_TheDataPinName);
+    
+    // Attach member method of this NuerteyDHT11Device<T> instance to ISR.
+    // Note that when callbacks are attached as per the below, the Mbed 
+    // OS driver API calls them in interrupt context. Interrupt context
+    // runs at a higher priority than any thread, which means that any 
+    // code called from the attach callback must be interrupt safe.
+    theFallingInterrupt.fall(callback(this, &NuerteyDHT11Device<T>::DataPinFalling));
+
+    //volatile int _count;
 
     if constexpr (std::is_same<T, DHT11_t>::value)
     {
@@ -141,11 +162,39 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
 template <typename T>
 void NuerteyDHT11Device<T>::DataPinRising()
 {
+    // =================================================================
+    // CAUTIONS:
+    // 
+    // [1] No blocking code in ISRs, therefore avoid any calls to wait, 
+    //     infinite while loops or blocking calls in general here.
+    // 
+    // [2] No printf, malloc or new in ISRs, thefore avoid any calls to  
+    //     bulky library functions here. In particular, certain library   
+    //     functions (such as printf, malloc and new) are non re-entrant,
+    //     and their behavior can be corrupted when called from an ISR.
+    // 
+    // [3] If you must ABSOLUTELY use printfs from interrupt contexts such
+    //     as the present one, leverage Event(s) instead.
+    // =================================================================
 
 }
 
 template <typename T>
 void NuerteyDHT11Device<T>::DataPinFalling()
 {
+    // =================================================================
+    // CAUTIONS:
+    // 
+    // [1] No blocking code in ISRs, therefore avoid any calls to wait, 
+    //     infinite while loops or blocking calls in general here.
+    // 
+    // [2] No printf, malloc or new in ISRs, thefore avoid any calls to  
+    //     bulky library functions here. In particular, certain library   
+    //     functions (such as printf, malloc and new) are non re-entrant,
+    //     and their behavior can be corrupted when called from an ISR.
+    // 
+    // [3] If you must ABSOLUTELY use printfs from interrupt contexts such
+    //     as the present one, leverage Event(s) instead.
+    // =================================================================
 
 }
