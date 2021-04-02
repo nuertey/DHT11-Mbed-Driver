@@ -357,11 +357,50 @@ SensorStatus_t NuerteyDHT11Device<T>::ValidateChecksum()
 
 template <typename T>
 float NuerteyDHT11Device<T>::CalculateTemperature() const
-{}
+{
+    auto v = 0;
+
+    // As an alternative to SFINAE template techniques:
+    if constexpr (std::is_same<T, DHT11_t>::value)
+    {
+        v = m_TheDataFrame[2];
+    }
+    else if constexpr (std::is_same<T, DHT22_t>::value)
+    {
+        v = m_TheDataFrame[2] & 0x7F;
+        v *= 256;
+        v += m_TheDataFrame[3];
+        v /= 10;
+
+        if (m_TheDataFrame[2] & 0x80)
+        {
+            v *= -1;
+        }
+    }
+
+    return (static_cast<float>(v));
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::CalculateHumidity() const
-{}
+{
+    auto v = 0;
+
+    // As an alternative to SFINAE template techniques:
+    if constexpr (std::is_same<T, DHT11_t>::value)
+    {
+        v = m_TheDataFrame[0];
+    }
+    else if constexpr (std::is_same<T, DHT22_t>::value)
+    {
+        v = m_TheDataFrame[0];
+        v *= 256;
+        v += m_TheDataFrame[1];
+        v /= 10;
+    }
+
+    return (static_cast<float>(v));
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::ConvertCelciusToFarenheit(const float & celcius)
