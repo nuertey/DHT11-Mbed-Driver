@@ -13,8 +13,8 @@
 * @brief   Drive the DHT11/DHT22 sensor module(s) in order to obtain 
 *          temperature/humidity readings.
 * 
-* @note    The Sensor Peripheral (DHT11) Component's Details Are As 
-*          Follows:
+* @note    The sensor peripheral (DHT11) component's details are as 
+*          follows:
 * 
 *   1) The DHT11 sensor measures and provides humidity and temperature 
 *      values serially over a single wire. Its characteristics are as 
@@ -156,10 +156,12 @@ template <typename T>
 NuerteyDHT11Device<T>::NuerteyDHT11Device(PinName thePinName)
     : m_TheDataPinName(thePinName)
 {
-    // Typically for POSIX, the following is enough:
     // Using this value ensures that time(NULL) - m_TheLastReadTime will
-    // be >= MINIMUM_SAMPLING_PERIOD_SECONDS right away. Note that this 
-    // assignment wraps around, but so will the subtraction.
+    // be >= MINIMUM_SAMPLING_PERIOD_SECONDS the first time. Note that  
+    // this assignment does wrap around, but so will the subtraction.
+
+    // Typically for POSIX, the following formulation is enough since
+    // time_t is denoted in seconds:
     m_TheLastReadTime = time(NULL) - MINIMUM_SAMPLING_PERIOD_SECONDS; 
 }
 
@@ -171,11 +173,11 @@ NuerteyDHT11Device<T>::~NuerteyDHT11Device()
 template <typename T>
 SensorStatus_t NuerteyDHT11Device<T>::ReadData()
 {
-    SensorStatus_t result = SensorStatus_t::SUCCESS;
+    auto result = SensorStatus_t::SUCCESS;
 
     // Check if sensor was read less than two seconds ago and return 
     // early to use last reading.
-    currentTime = time(NULL);
+    auto currentTime = time(NULL);
 
     if (difftime(currentTime, m_TheLastReadTime) < MINIMUM_SAMPLING_PERIOD_SECONDS)
     {
@@ -209,7 +211,7 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     theDigitalInOutPin.output();
     theDigitalInOutPin = PIN_LOW;
 
-    // As a alternative to SFINAE template techniques:
+    // As an alternative to SFINAE template techniques:
     if constexpr (std::is_same<T, DHT11_t>::value)
     {
         // "...and this process must take at least 18ms to ensure DHT’s 
@@ -221,7 +223,7 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
         // The data sheet specifies, "at least 1ms", so err on the side 
         // of caution by doubling the amount. Per Mbed docs, spinning
         // with wait_us() on milliseconds here is not recommended as it
-        // affect multi-threaded performance.
+        // would affect multi-threaded performance.
         ThisThread::sleep_for(2);
     }
 
@@ -236,20 +238,22 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     wait_us(30);
     theDigitalInOutPin.input();
 
-    // wait till the sensor grabs the bus
+    // Wait till the sensor grabs the bus.
     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 40))
     {
         result = SensorStatus_t::ERROR_NOT_DETECTED;
         m_TheLastReadResult = result;
         return result;
     }
-    // sensor should signal low 80us and then hi 80us
+
+    // Sensor should signal low 80us and then hi 80us.
     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 0, 100))
     {
         result = SensorStatus_t::ERROR_SYNC_TIMEOUT;
         m_TheLastReadResult = result;
         return result;
     }
+
     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 100))
     {
         result = SensorStatus_t::ERROR_TOO_FAST_READS;
@@ -316,7 +320,7 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
 template <typename T>
 SensorStatus_t NuerteyDHT11Device<T>::ExpectPulse(DigitalInOut & theIO, const int & level, const int & max_time)
 {
-    SensorStatus_t result = SensorStatus_t::SUCCESS;
+    auto result = SensorStatus_t::SUCCESS;
  
     // This method essentially spins in a loop (i.e. polls) for every 
     // microsecond until the expected pulse arrives or we timeout.   
@@ -338,7 +342,7 @@ SensorStatus_t NuerteyDHT11Device<T>::ExpectPulse(DigitalInOut & theIO, const in
 template <typename T>
 SensorStatus_t NuerteyDHT11Device<T>::ValidateChecksum()
 {
-    SensorStatus_t result = SensorStatus_t::ERROR_BAD_CHECKSUM;
+    auto result = SensorStatus_t::ERROR_BAD_CHECKSUM;
     
     // Per the sensor device specs./data sheet:
     if (m_TheDataFrame[4] == ((m_TheDataFrame[0] + m_TheDataFrame[1] + m_TheDataFrame[2] + m_TheDataFrame[3]) & 0xFF))
@@ -351,4 +355,36 @@ SensorStatus_t NuerteyDHT11Device<T>::ValidateChecksum()
     return result;
 }
 
+template <typename T>
+float NuerteyDHT11Device<T>::CalculateTemperature() const
+{}
 
+template <typename T>
+float NuerteyDHT11Device<T>::CalculateHumidity() const
+{}
+
+template <typename T>
+float NuerteyDHT11Device<T>::ConvertCelciusToFarenheit(const float & celcius)
+{}
+
+template <typename T>
+float NuerteyDHT11Device<T>::ConvertCelciusToKelvin(const float & celcius)
+{}
+
+template <typename T>
+float NuerteyDHT11Device<T>::GetHumidity() const
+{
+    return m_TheLastHumidity;
+}
+
+template <typename T>
+float NuerteyDHT11Device<T>::GetTemperature(const TemperatureScale_t & Scale) const
+{}
+
+template <typename T>
+float NuerteyDHT11Device<T>::CalculateDewPoint(const float & celsius, const float & humidity) const
+{}
+
+template <typename T>
+float NuerteyDHT11Device<T>::CalculateDewPointFast(const float & celsius, const float & humidity) const
+{}
