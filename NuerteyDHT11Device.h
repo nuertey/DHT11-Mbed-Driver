@@ -104,10 +104,11 @@ class NuerteyDHT11Device
     "Hey! NuerteyDHT11Device in its current form is only designed with DHT11, or DHT22 sensors in mind!!");
 
 public:
-    static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS = 8;
-    static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES      = 5;
-    static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
-    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       = 2;
+    static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS  = 8;
+    static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES       = 5;
+    static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS           = 40; // 5x8
+    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS        = 2;
+    static constexpr float   ZERO_DEGREES_CELCIUS_EQUIVALENT_KELVIN = 273.15; // Freezing point of water.
 
     using DataFrameBytes_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
     using DataFrameBits_t  = std::array<uint8_t, MAXIMUM_DATA_FRAME_SIZE_BITS>;
@@ -365,11 +366,15 @@ float NuerteyDHT11Device<T>::CalculateHumidity() const
 
 template <typename T>
 float NuerteyDHT11Device<T>::ConvertCelciusToFarenheit(const float & celcius)
-{}
+{
+    return ((celsius * 9/5) + 32);
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::ConvertCelciusToKelvin(const float & celcius)
-{}
+{
+    return (celsius + 273.15);
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::GetHumidity() const
@@ -379,7 +384,24 @@ float NuerteyDHT11Device<T>::GetHumidity() const
 
 template <typename T>
 float NuerteyDHT11Device<T>::GetTemperature(const TemperatureScale_t & Scale) const
-{}
+{
+    auto result = 0.0;
+
+    if (Scale == TemperatureScale_t::FARENHEIT)
+    {
+        result = ConvertCelciusToFarenheit(m_TheLastTemperature);
+    }
+    else if (Scale == TemperatureScale_t::KELVIN)
+    {
+        result = ConvertCelciusToKelvin(m_TheLastTemperature);
+    }
+    else
+    {
+        result = m_TheLastTemperature;
+    }
+
+    return result;
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::CalculateDewPoint(const float & celsius, const float & humidity) const
