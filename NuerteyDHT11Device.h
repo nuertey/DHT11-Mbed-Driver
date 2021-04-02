@@ -78,7 +78,7 @@ enum class SensorStatus_t : uint8_t
     ERROR_SYNC_TIMEOUT,
     ERROR_DATA_TIMEOUT,
     ERROR_BAD_CHECKSUM,
-    ERROR_OVERLY_FAST_READS
+    ERROR_TOO_FAST_READS
 };
 
 enum class TemperatureScale_t : uint8_t
@@ -109,7 +109,8 @@ public:
     static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
     static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       = 2;
 
-    using DataFrame_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
+    using DataFrameBytes_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
+    using DataFrameBits_t  = std::array<uint8_t, MAXIMUM_DATA_FRAME_SIZE_BITS>;
 
     NuerteyDHT11Device(PinName thePinName);
 
@@ -135,6 +136,7 @@ public:
 protected:
 
 private:
+    [[nodiscard]] SensorStatus_t ExpectPulse(DigitalInOut & theIO, const int & level, const int & max_time);
     [[nodiscard]] SensorStatus_t ValidateChecksum() const;
 
     float CalculateTemperature() const;
@@ -143,7 +145,7 @@ private:
     float ConvertCelciusToKelvin(const float & celcius);
 
     PinName              m_TheDataPinName;
-    DataFrame_t          m_TheDataFrame;
+    DataFrameBytes_t     m_TheDataFrame;
     time_t               m_TheLastReadTime;
     SensorStatus_t       m_TheLastReadResult;
     float                m_TheLastTemperature;
@@ -200,19 +202,135 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     // 
     // https://www.mouser.com/datasheet/2/758/DHT11-Technical-Data-Sheet-Translated-Version-1143054.pdf
     theDigitalInOutPin.mode(PullUp);
+    
+    // Just to allow things to stabilize:
+    ThisThread::sleep_for(1);
+    
     theDigitalInOutPin.output();
     theDigitalInOutPin = PIN_LOW;
 
-
+    // As a alternative to SFINAE template techniques:
     if constexpr (std::is_same<T, DHT11_t>::value)
     {
-        ComposeAmazonMQTTConnectData<DHT11_t>();
+        // "...and this process must take at least 18ms to ensure DHT’s 
+        // detection of MCU's signal", so err on the side of caution.
+        ThisThread::sleep_for(20);
     }
     else if constexpr (std::is_same<T, DHT22_t>::value)
     {
-        ComposeGoogleMQTTConnectData<DHT22_t>();
+        // The data sheet specifies, "at least 1ms", so err on the side 
+        // of caution by doubling the amount. Per Mbed docs, spinning
+        // with wait_us() on milliseconds here is not recommended as it
+        // affect multi-threaded performance.
+        ThisThread::sleep_for(2);
     }
 
+    uint8_t i = 0, j = 0, b = 0;
+    DataFrameBits_t bitValue = {}; // Initialize to zeros.
+
+    // "...then MCU will pull up voltage and wait 20-40us for DHT’s response."
+    theDigitalInOutPin.mode(PullUp);
+
+    // End the start signal by setting data line high for 30 microseconds.
+    theDigitalInOutPin = PIN_HIGH;
+    wait_us(30);
+    theDigitalInOutPin.input();
+
+    // wait till the sensor grabs the bus
+    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 40))
+    {
+        result = SensorStatus_t::ERROR_NOT_DETECTED;
+        m_TheLastReadResult = result;
+        return result;
+    }
+    // sensor should signal low 80us and then hi 80us
+    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 0, 100))
+    {
+        result = SensorStatus_t::ERROR_SYNC_TIMEOUT;
+        m_TheLastReadResult = result;
+        return result;
+    }
+    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 100))
+    {
+        result = SensorStatus_t::ERROR_TOO_FAST_READS;
+        m_TheLastReadResult = result;
+        return result;
+    }
+    else
+    {
+        // Timing critical code.
+        {
+            // TBD; Nuertey Odzeyem: We CANNOT use the CriticalSectionLock
+            // here as ExpectPulse() calls wait_us(). As the Mbed docs 
+            // further clarifies:
+            //
+            // "Note: You must not use time-consuming operations, standard 
+            // library and RTOS functions inside critical section."
+            //CriticalSectionLock  lock;
+
+            // capture the data
+            for (i = 0; i < SINGLE_BUS_DATA_FRAME_SIZE_BYTES; i++)
+            {
+                for (j = 0; j < DHT11_MICROCONTROLLER_RESOLUTION_BITS; j++)
+                {
+                    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 0, 75))
+                    {
+                        result = SensorStatus_t::ERROR_DATA_TIMEOUT;
+                        m_TheLastReadResult = result;
+                        return result;
+                    }
+                    // logic 0 is 28us max, 1 is 70us
+                    wait_us(40);
+                    bitValue[i*DHT11_MICROCONTROLLER_RESOLUTION_BITS + j] = theDigitalInOutPin;
+                    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 50))
+                    {
+                        result = SensorStatus_t::ERROR_DATA_TIMEOUT;
+                        m_TheLastReadResult = result;
+                        return result;
+                    }
+                }
+            }
+        } // End of timing critical code.
+
+        // store the data
+        for (i = 0; i < SINGLE_BUS_DATA_FRAME_SIZE_BYTES; i++)
+        {
+            b = 0;
+            for (j = 0; j < DHT11_MICROCONTROLLER_RESOLUTION_BITS; j++)
+            {
+                if (bitValue[i*DHT11_MICROCONTROLLER_RESOLUTION_BITS + j] == 1)
+                {
+                    b |= (1 << (7-j));
+                }
+            }
+            m_TheDataFrame[i] = b;
+        }
+        result = ValidateChecksum();
+    }
+
+    m_TheLastReadResult = result;
+    
+    return result;
+}
+
+template <typename T>
+SensorStatus_t NuerteyDHT11Device<T>::ExpectPulse(DigitalInOut & theIO, const int & level, const int & max_time)
+{
+    SensorStatus_t result = SensorStatus_t::SUCCESS;
+ 
+    // This method essentially spins in a loop (i.e. polls) for every 
+    // microsecond until the expected pulse arrives or we timeout.   
+    int count = 0;
+    while (level == theIO)
+    {
+        if (count > max_time)
+        {
+            result = SensorStatus_t::ERROR_TOO_FAST_READS;
+            break;
+        }
+        count++;
+        wait_us(1);
+    }
     
     return result;
 }
@@ -225,6 +343,8 @@ SensorStatus_t NuerteyDHT11Device<T>::ValidateChecksum()
     // Per the sensor device specs./data sheet:
     if (m_TheDataFrame[4] == ((m_TheDataFrame[0] + m_TheDataFrame[1] + m_TheDataFrame[2] + m_TheDataFrame[3]) & 0xFF))
     {
+        m_TheLastTemperature = CalculateTemperature();
+        m_TheLastHumidity = CalculateHumidity();
         result = SensorStatus_t::SUCCESS;
     }
     
