@@ -92,7 +92,7 @@ template <typename T, typename U>
 struct TrueTypesEquivalent : std::is_same<typename std::decay<T>::type, U>::type
 {};
 
-// Types to distinguish each sensor module type:
+// Metaprogramming types to distinguish each sensor module type:
 struct DHT11_t {};
 struct DHT22_t {};
 
@@ -104,11 +104,10 @@ class NuerteyDHT11Device
     "Hey! NuerteyDHT11Device in its current form is only designed with DHT11, or DHT22 sensors in mind!!");
 
 public:
-    static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS  = 8;
-    static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES       = 5;
-    static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS           = 40; // 5x8
-    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS        = 2;
-    static constexpr float   ZERO_DEGREES_CELCIUS_EQUIVALENT_KELVIN = 273.15; // Freezing point of water.
+    static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS =  8;
+    static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES      =  5;
+    static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
+    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       =  2;
 
     using DataFrameBytes_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
     using DataFrameBits_t  = std::array<uint8_t, MAXIMUM_DATA_FRAME_SIZE_BITS>;
@@ -405,8 +404,31 @@ float NuerteyDHT11Device<T>::GetTemperature(const TemperatureScale_t & Scale) co
 
 template <typename T>
 float NuerteyDHT11Device<T>::CalculateDewPoint(const float & celsius, const float & humidity) const
-{}
+{
+    // dewPoint function NOAA
+    // reference: http://wahiduddin.net/calc/density_algorithms.htm
+    float A0= 373.15/(273.15 + celsius);
+    float SUM = -7.90298 * (A0-1);
+    SUM += 5.02808 * log10(A0);
+    SUM += -1.3816e-7 * (pow(10, (11.344*(1-1/A0)))-1) ;
+    SUM += 8.1328e-3 * (pow(10,(-3.49149*(A0-1)))-1) ;
+    SUM += log10(1013.246);
+    float VP = pow(10, SUM-3) * humidity;
+    float T = log(VP/0.61078);   // temp var
+
+    return (241.88 * T) / (17.558-T);
+}
 
 template <typename T>
 float NuerteyDHT11Device<T>::CalculateDewPointFast(const float & celsius, const float & humidity) const
-{}
+{
+    // delta max = 0.6544 wrt dewPoint()
+    // 5x faster than dewPoint()
+    // reference: http://en.wikipedia.org/wiki/Dew_point
+    float a = 17.271;
+    float b = 237.7;
+    float temp = (a * celsius) / (b + celsius) + log(humidity/100);
+    float Td = (b * temp) / (a - temp);
+
+    return Td;
+}
