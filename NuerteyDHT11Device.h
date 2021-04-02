@@ -69,7 +69,9 @@
 #define PIN_HIGH  1
 #define PIN_LOW   0
 
-enum class SensorStatus_t : uint8_t
+// Enforce that these errors should always be checked whenever and 
+// whereever they are returned.
+enum class [[nodiscard]] SensorStatus_t : uint8_t
 {
     SUCCESS = 0,
     ERROR_BUS_BUSY,
@@ -143,12 +145,12 @@ protected:
 
 private:
     [[nodiscard]] SensorStatus_t ExpectPulse(DigitalInOut & theIO, const int & level, const int & max_time);
-    [[nodiscard]] SensorStatus_t ValidateChecksum() const;
+    [[nodiscard]] SensorStatus_t ValidateChecksum();
 
     float CalculateTemperature() const;
     float CalculateHumidity() const;
-    float ConvertCelciusToFarenheit(const float & celcius);
-    float ConvertCelciusToKelvin(const float & celcius);
+    float ConvertCelsiusToFarenheit(const float & celcius) const;
+    float ConvertCelsiusToKelvin(const float & celcius) const;
 
     PinName              m_TheDataPinName;
     DataFrameBytes_t     m_TheDataFrame;
@@ -409,13 +411,13 @@ float NuerteyDHT11Device<T>::CalculateHumidity() const
 }
 
 template <typename T>
-float NuerteyDHT11Device<T>::ConvertCelciusToFarenheit(const float & celcius)
+float NuerteyDHT11Device<T>::ConvertCelsiusToFarenheit(const float & celsius) const
 {
     return ((celsius * 9/5) + 32);
 }
 
 template <typename T>
-float NuerteyDHT11Device<T>::ConvertCelciusToKelvin(const float & celcius)
+float NuerteyDHT11Device<T>::ConvertCelsiusToKelvin(const float & celsius) const
 {
     return (celsius + 273.15);
 }
@@ -433,11 +435,11 @@ float NuerteyDHT11Device<T>::GetTemperature(const TemperatureScale_t & Scale) co
 
     if (Scale == TemperatureScale_t::FARENHEIT)
     {
-        result = ConvertCelciusToFarenheit(m_TheLastTemperature);
+        result = ConvertCelsiusToFarenheit(m_TheLastTemperature);
     }
     else if (Scale == TemperatureScale_t::KELVIN)
     {
-        result = ConvertCelciusToKelvin(m_TheLastTemperature);
+        result = ConvertCelsiusToKelvin(m_TheLastTemperature);
     }
     else
     {
@@ -459,9 +461,9 @@ float NuerteyDHT11Device<T>::CalculateDewPoint(const float & celsius, const floa
     SUM += 8.1328e-3 * (pow(10,(-3.49149*(A0-1)))-1) ;
     SUM += log10(1013.246);
     float VP = pow(10, SUM-3) * humidity;
-    float T = log(VP/0.61078);   // temp var
+    float tempVar = log(VP/0.61078);   // temp var
 
-    return (241.88 * T) / (17.558-T);
+    return (241.88 * tempVar) / (17.558 - tempVar);
 }
 
 template <typename T>

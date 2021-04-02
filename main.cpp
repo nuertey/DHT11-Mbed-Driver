@@ -2,8 +2,8 @@
 #include <string>
 #include "NuerteyDHT11Device.h"
 
-static const uint32_t DHT11_DEVICE_STABLE_STATUS_DELAY(1000); // 1 second.
-static const uint32_t DHT11_DEVICE_SAMPLING_PERIOD(3000);     // 3 seconds.
+static constexpr uint32_t DHT11_DEVICE_STABLE_STATUS_DELAY(1000); // 1 second.
+static constexpr uint32_t DHT11_DEVICE_SAMPLING_PERIOD(3000);     // 3 seconds.
 
 // DHT11 Sensor Interfacing with ARM MBED. Data communication is single-line
 // serial. Note that for STM32 Nucleo-144 boards, the ST Zio connectors 
