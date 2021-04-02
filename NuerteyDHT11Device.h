@@ -74,7 +74,7 @@ enum class SensorStatus_t : uint8_t
     SUCCESS = 0,
     ERROR_BUS_BUSY,
     ERROR_NOT_DETECTED,
-    ERROR_BAD_START,
+    ERROR_ACK_TOO_LONG,
     ERROR_SYNC_TIMEOUT,
     ERROR_DATA_TIMEOUT,
     ERROR_BAD_CHECKSUM,
@@ -91,6 +91,12 @@ enum class TemperatureScale_t : uint8_t
 template <typename T, typename U>
 struct TrueTypesEquivalent : std::is_same<typename std::decay<T>::type, U>::type
 {};
+
+template <typename E>
+constexpr auto ToUnderlyingType(E e) -> typename std::underlying_type<E>::type
+{
+    return static_cast<typename std::underlying_type<E>::type>(e);
+}
 
 // Metaprogramming types to distinguish each sensor module type:
 struct DHT11_t {};
