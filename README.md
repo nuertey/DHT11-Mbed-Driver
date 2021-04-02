@@ -34,15 +34,15 @@ These cautions are key to successful sensor operation:
 Reference: https://www.mouser.com/datasheet/2/758/DHT11-Technical-Data-Sheet-Translated-Version-1143054.pdf
 
 ## Tested Target (and peripheral) :
-NUCLEO F767ZI 
-DHT11 Sensor Module
-5K pull-up resistor
-(All properly connected via breadboard with appropriate power supply)
+* NUCLEO F767ZI 
+* DHT11 Sensor Module
+* 5K pull-up resistor
+* (All properly connected via breadboard with appropriate power supply)
 
 ## Compiler 
-GCC ARM 10.2.1
-(GNU Arm Embedded Toolchain 10-2020-q4-major) 10.2.1 20201103 (release)
-gcc-arm-none-eabi-10-2020-q4-major/bin
+* GCC ARM 10.2.1
+* (GNU Arm Embedded Toolchain 10-2020-q4-major) 10.2.1 20201103 (release)
+* gcc-arm-none-eabi-10-2020-q4-major/bin
 
 ## Build Instructions :
 Double-check mbed tool config to ensure you are picking up an up-to-date GCC ARM compiler:
