@@ -82,6 +82,6 @@ int main()
         // Per datasheet/device specifications:
         //
         // "Sampling period：Secondary Greater than 2 seconds"
-        ThisThread::sleep_for(DHT11_DEVICE_STABLE_STATUS_DELAY);
+        ThisThread::sleep_for(DHT11_DEVICE_SAMPLING_PERIOD);
     }
 }

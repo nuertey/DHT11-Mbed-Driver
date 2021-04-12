@@ -119,7 +119,7 @@ Just for the sake of brevity, here is a simple illustration of the core usage pa
         // Per datasheet/device specifications:
         //
         // "Sampling period：Secondary Greater than 2 seconds"
-        ThisThread::sleep_for(DHT11_DEVICE_STABLE_STATUS_DELAY);
+        ThisThread::sleep_for(DHT11_DEVICE_SAMPLING_PERIOD);
     }
 ```
 The above is merely an illustration. For a comprehensive example that actually compiles, consult the aforementioned test application.
