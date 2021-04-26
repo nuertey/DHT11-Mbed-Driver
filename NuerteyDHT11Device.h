@@ -120,24 +120,29 @@ constexpr auto ToEnum(V value) -> E
     return static_cast<E>(value);
 }
 
+// Register for implicit conversion to error_code:
+//
+// For the SensorStatus_t enumerators to be usable as error_code constants,
+// enable the conversion constructor using the is_error_code_enum type trait:
 namespace std
 {
     template <>
     struct is_error_code_enum<SensorStatus_t> : std::true_type {};
 }
 
-struct DHT11ErrorCategory : std::error_category
+class DHT11ErrorCategory : public std::error_category
 {
-    const char* name() const noexcept override;
-    std::string message(int ev) const override;
+public:
+    virtual const char* name() const;
+    virtual std::string message(int ev) const;
 };
 
-inline const char* DHT11ErrorCategory::name() const noexcept
+const char* DHT11ErrorCategory::name() const
 {
     return "DHT11-Sensor-Mbed";
 }
 
-inline std::string DHT11ErrorCategory::message(int ev) const
+std::string DHT11ErrorCategory::message(int ev) const
 {
     switch (ToEnum<SensorStatus_t>(ev))
     {
@@ -168,12 +173,21 @@ inline std::string DHT11ErrorCategory::message(int ev) const
             return "(unrecognized error)";
     }
 }
-    
-const DHT11ErrorCategory theDHT11ErrorCategory {};
 
-inline std::error_code make_error_code(SensorStatus_t e)
+inline const std::error_category& dht11_error_category()
 {
-    return {ToUnderlyingType(e), theDHT11ErrorCategory};
+    static DHT11ErrorCategory instance;
+    return instance;
+}
+
+inline auto make_error_code(SensorStatus_t e)
+{
+    return std::error_code(ToUnderlyingType(e), dht11_error_category());
+}
+
+inline auto make_error_condition(SensorStatus_t e)
+{
+    return std::error_condition(ToUnderlyingType(e), dht11_error_category());
 }
 
 // Metaprogramming types to distinguish each sensor module type:
