@@ -96,8 +96,8 @@ Just for the sake of brevity, here is a simple illustration of the core usage pa
     while (1)
     {
         auto result = g_DHT11.ReadData();
-        if (result == SensorStatus_t::SUCCESS)
-        {
+        if (!result)
+        {               
             auto h = 0.0f, c = 0.0f, f = 0.0f, k = 0.0f, dp = 0.0f, dpf = 0.0f;
 
             c   = g_DHT11.GetTemperature(TemperatureScale_t::CELCIUS);
@@ -113,7 +113,7 @@ Just for the sake of brevity, here is a simple illustration of the core usage pa
         else
         {
             printf("Error! g_DHT11.ReadData() returned: [%d] -> %s\n", 
-                  ToUnderlyingType(result), ToString(result).c_str());
+                  result.value(), result.message().c_str());
         }
 
         // Per datasheet/device specifications:

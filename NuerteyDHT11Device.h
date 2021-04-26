@@ -61,7 +61,11 @@
 ***********************************************************************/
 #pragma once
 
+#include <type_traits>
+#include <system_error>
+#include <cstdlib>
 #include <cstdint>
+#include <string>
 #include <array>
 #include <time.h> 
 #include "mbed.h"
@@ -71,16 +75,26 @@
 
 // Enforce that these errors should always be checked whenever and 
 // whereever they are returned.
-enum class [[nodiscard]] SensorStatus_t : uint8_t
+
+// TBD: Nuertey Odzeyem; double-check if the below actually does imply
+// that we dont need a SUCCESS value in the enum and consequent message()
+// translation. What would message() print out then?
+//
+// "Whatever the reason for failure, after create_directory() returns, 
+// the error_code object ec will contain the OS-specific error code. On 
+// the other hand, if the call was successful then ec contains a zero 
+// value. This follows the tradition (used by errno and GetLastError())
+// of having 0 indicate success and non-zero indicate failure."
+enum class [[nodiscard]] SensorStatus_t : int8_t
 {
-    SUCCESS = 0,
-    ERROR_BUS_BUSY,
-    ERROR_NOT_DETECTED,
-    ERROR_ACK_TOO_LONG,
-    ERROR_SYNC_TIMEOUT,
-    ERROR_DATA_TIMEOUT,
-    ERROR_BAD_CHECKSUM,
-    ERROR_TOO_FAST_READS
+    SUCCESS              =  0,
+    ERROR_BUS_BUSY       = -1,
+    ERROR_NOT_DETECTED   = -2,
+    ERROR_ACK_TOO_LONG   = -3,
+    ERROR_SYNC_TIMEOUT   = -4,
+    ERROR_DATA_TIMEOUT   = -5,
+    ERROR_BAD_CHECKSUM   = -6,
+    ERROR_TOO_FAST_READS = -7
 };
 
 enum class TemperatureScale_t : uint8_t
@@ -98,6 +112,68 @@ template <typename E>
 constexpr auto ToUnderlyingType(E e) -> typename std::underlying_type<E>::type
 {
     return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
+template <typename E, typename V = int8_t>
+constexpr auto ToEnum(V value) -> E
+{
+    return static_cast<E>(value);
+}
+
+namespace std
+{
+    template <>
+    struct is_error_code_enum<SensorStatus_t> : std::true_type {};
+}
+
+struct DHT11ErrorCategory : std::error_category
+{
+    const char* name() const noexcept override;
+    std::string message(int ev) const override;
+};
+
+inline const char* DHT11ErrorCategory::name() const noexcept
+{
+    return "DHT11-Sensor-Mbed";
+}
+
+inline std::string DHT11ErrorCategory::message(int ev) const
+{
+    switch (ToEnum<SensorStatus_t>(ev))
+    {
+        case SensorStatus_t::SUCCESS:
+            return "Success - no errors";
+            
+        case SensorStatus_t::ERROR_BUS_BUSY:
+            return "Communication failure - bus busy";
+
+        case SensorStatus_t::ERROR_NOT_DETECTED:
+            return "Communication failure - sensor not detected on bus";
+
+        case SensorStatus_t::ERROR_ACK_TOO_LONG:
+            return "Communication failure - ack too long";
+
+        case SensorStatus_t::ERROR_SYNC_TIMEOUT:
+            return "Communication failure - sync timeout";
+
+        case SensorStatus_t::ERROR_DATA_TIMEOUT:
+            return "Communication failure - data timeout";
+
+        case SensorStatus_t::ERROR_BAD_CHECKSUM:
+            return "Checksum error";
+
+        case SensorStatus_t::ERROR_TOO_FAST_READS:
+            return "Communication failure - too fast reads";            
+        default:
+            return "(unrecognized error)";
+    }
+}
+    
+const DHT11ErrorCategory theDHT11ErrorCategory {};
+
+inline std::error_code make_error_code(SensorStatus_t e)
+{
+    return {ToUnderlyingType(e), theDHT11ErrorCategory};
 }
 
 // Metaprogramming types to distinguish each sensor module type:
@@ -134,7 +210,7 @@ public:
 
     virtual ~NuerteyDHT11Device();
 
-    [[nodiscard]] SensorStatus_t ReadData();
+    [[nodiscard]] std::error_code ReadData();
 
     float GetHumidity() const;
     float GetTemperature(const TemperatureScale_t & Scale) const;
@@ -155,7 +231,7 @@ private:
     PinName              m_TheDataPinName;
     DataFrameBytes_t     m_TheDataFrame;
     time_t               m_TheLastReadTime;
-    SensorStatus_t       m_TheLastReadResult;
+    std::error_code      m_TheLastReadResult;
     float                m_TheLastTemperature;
     float                m_TheLastHumidity;
 };
@@ -179,10 +255,8 @@ NuerteyDHT11Device<T>::~NuerteyDHT11Device()
 }
 
 template <typename T>
-SensorStatus_t NuerteyDHT11Device<T>::ReadData()
+std::error_code NuerteyDHT11Device<T>::ReadData()
 {
-    auto result = SensorStatus_t::SUCCESS;
-
     // Check if sensor was read less than two seconds ago and return 
     // early to use last reading.
     auto currentTime = time(NULL);
@@ -192,6 +266,8 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
         return m_TheLastReadResult; // return last correct measurement
     }
 
+    std::error_code errorCode;
+    auto result = SensorStatus_t::SUCCESS;
     m_TheLastReadTime = currentTime;
 
     // Reset 40 bits of previously received data to zero.
@@ -220,7 +296,7 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     theDigitalInOutPin = PIN_LOW;
 
     // As an alternative to SFINAE template techniques:
-    if constexpr (std::is_same<T, DHT11_t>::value)
+    if constexpr (std::is_same<T, DHT11_t>::value) 
     {
         // "...and this process must take at least 18ms to ensure DHT’s 
         // detection of MCU's signal", so err on the side of caution.
@@ -250,25 +326,28 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 40))
     {
         result = SensorStatus_t::ERROR_NOT_DETECTED;
-        m_TheLastReadResult = result;
-        return result;
+        errorCode = make_error_code(result);
+        m_TheLastReadResult = errorCode;
+        return errorCode;
     }
 
     // Sensor should signal low 80us and then hi 80us.
     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 0, 100))
     {
         result = SensorStatus_t::ERROR_SYNC_TIMEOUT;
-        m_TheLastReadResult = result;
-        return result;
+        errorCode = make_error_code(result);
+        m_TheLastReadResult = errorCode;
+        return errorCode;
     }
 
-    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 100))
+    if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 100)) [[unlikely]]
     {
         result = SensorStatus_t::ERROR_TOO_FAST_READS;
-        m_TheLastReadResult = result;
-        return result;
+        errorCode = make_error_code(result);
+        m_TheLastReadResult = errorCode;
+        return errorCode;
     }
-    else
+    else [[likely]]
     {
         // Timing critical code.
         {
@@ -288,8 +367,9 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
                     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 0, 75))
                     {
                         result = SensorStatus_t::ERROR_DATA_TIMEOUT;
-                        m_TheLastReadResult = result;
-                        return result;
+                        errorCode = make_error_code(result);
+                        m_TheLastReadResult = errorCode;
+                        return errorCode;
                     }
                     // logic 0 is 28us max, 1 is 70us
                     wait_us(40);
@@ -297,8 +377,9 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
                     if (SensorStatus_t::SUCCESS != ExpectPulse(theDigitalInOutPin, 1, 50))
                     {
                         result = SensorStatus_t::ERROR_DATA_TIMEOUT;
-                        m_TheLastReadResult = result;
-                        return result;
+                        errorCode = make_error_code(result);
+                        m_TheLastReadResult = errorCode;
+                        return errorCode;
                     }
                 }
             }
@@ -320,9 +401,15 @@ SensorStatus_t NuerteyDHT11Device<T>::ReadData()
         result = ValidateChecksum();
     }
 
-    m_TheLastReadResult = result;
+    // Note that we are relying upon default-construction of std::error_code
+    // being enough to indicate success as per standard practice.
+    if (result != SensorStatus_t::SUCCESS)
+    {
+        errorCode = make_error_code(result);
+    }
+    m_TheLastReadResult = errorCode;
     
-    return result;
+    return errorCode;
 }
 
 template <typename T>
