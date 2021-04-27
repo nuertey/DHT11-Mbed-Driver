@@ -5,14 +5,19 @@ static constexpr uint32_t DHT11_DEVICE_SAMPLING_PERIOD(3000);     // 3 seconds.
 
 // DHT11 Sensor Interfacing with ARM MBED. Data communication is single-line
 // serial. Note that for STM32 Nucleo-144 boards, the ST Zio connectors 
-// are designated by [CN7, CN8, CN9, CN10].
+// are designated by [CN7, CN8, CN9, CN10]. 
 //
-// Connector: CN7 
-// Pin      : 13 
-// Pin Name : D22
-// STM32 Pin: PB5
-// Signal   : SPI_B_MOSI
-NuerteyDHT11Device<DHT11_t> g_DHT11(PB_5); // TBD Nuertey Odzeyem; Pin Name or STM32 Pin??? If fixed here, fix in original project too
+// From prior successful testing of DHT11 on Arduino Uno, and matching 
+// up the specific pins on Arduino with the "Arduino Support" section of
+// the STM32 Zio connectors, I isolated the following pin as the 
+// Arduino-equivalent data pin:
+//
+// Connector: CN10 
+// Pin      : 10 
+// Pin Name : D3
+// STM32 Pin: PE13
+// Signal   : TIMER_A_PWM3
+NuerteyDHT11Device<DHT11_t> g_DHT11(PE_13); // TBD Nuertey Odzeyem; Pin Name or STM32 Pin??? If fixed here, fix in original project too
 
 int main()
 {

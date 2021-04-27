@@ -133,11 +133,11 @@ namespace std
 class DHT11ErrorCategory : public std::error_category
 {
 public:
-    virtual const char* name() const;
-    virtual std::string message(int ev) const;
+    virtual const char* name() const noexcept override;
+    virtual std::string message(int ev) const override;
 };
 
-const char* DHT11ErrorCategory::name() const
+const char* DHT11ErrorCategory::name() const noexcept
 {
     return "DHT11-Sensor-Mbed";
 }
@@ -205,7 +205,7 @@ public:
     static constexpr uint8_t DHT11_MICROCONTROLLER_RESOLUTION_BITS =  8;
     static constexpr uint8_t SINGLE_BUS_DATA_FRAME_SIZE_BYTES      =  5;
     static constexpr uint8_t MAXIMUM_DATA_FRAME_SIZE_BITS          = 40; // 5x8
-    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       =  2;
+    static constexpr double  MINIMUM_SAMPLING_PERIOD_SECONDS       =  3; // Be conservative.
 
     using DataFrameBytes_t = std::array<uint8_t, SINGLE_BUS_DATA_FRAME_SIZE_BYTES>;
     using DataFrameBits_t  = std::array<uint8_t, MAXIMUM_DATA_FRAME_SIZE_BITS>;
