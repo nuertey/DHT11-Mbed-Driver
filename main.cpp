@@ -17,7 +17,7 @@ static constexpr uint32_t DHT11_DEVICE_SAMPLING_PERIOD(3000);     // 3 seconds.
 // Pin Name : D3
 // STM32 Pin: PE13
 // Signal   : TIMER_A_PWM3
-NuerteyDHT11Device<DHT11_t> g_DHT11(PE_13); // TBD Nuertey Odzeyem; Pin Name or STM32 Pin??? If fixed here, fix in original project too
+NuerteyDHT11Device<DHT11_t> g_DHT11(PE_13);
 
 int main()
 {

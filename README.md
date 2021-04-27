@@ -76,8 +76,43 @@ Then deploy the following equivalent image of yours to your target under test an
 ## Output Snippet
 
 ```
-Coming soon as testing is not yet complete and time is scarce as one multitasks between projects.
+DHT11-Mbed-Driver Application - Beginning... 
 
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
+
+[debug success result] system :-> "Success" -> [0]
+
+Temperature in Kelvin: 298.15K, Celcius: 25.00°C, Farenheit 77.00°F
+Humidity is 32.00, Dewpoint: 7.18, Dewpoint fast: 7.15
 ```
 
 ## Usage Example
